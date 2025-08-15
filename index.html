@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lite JSON Host · Repo Mode (no backend)</title>
+  <meta name="description" content="Single-file JSON editor + host using a GitHub repository via the Contents API. Create, edit, and publish shareable JSON endpoints with only HTML/CSS/JS." />
+  <style>
+    :root{
+      --bg:#0b0f14; --bg-soft:#0f1520; --panel:#121a26; --ink:#e8f0ff; --muted:#9fb0c3; --brand:#4da3ff;
+      --ok:#34d399; --warn:#f59e0b; --err:#ef4444; --border:#1f2a3a; --focus:#7dd3fc;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font:14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+      color:var(--ink); background:
+        radial-gradient(1000px 600px at 10% -10%, #153a63 0%, transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, #0d2b52 0%, transparent 60%),
+        var(--bg);
+    }
+    a{color:var(--brand); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .app{display:flex; flex-direction:column; min-height:100%}
+    header{position:sticky; top:0; z-index:3; backdrop-filter:saturate(1.2) blur(8px); background:linear-gradient(180deg, rgba(12,18,28,.9), rgba(12,18,28,.6)); border-bottom:1px solid var(--border)}
+    .bar{display:flex; gap:.75rem; align-items:center; padding:.75rem 1rem; flex-wrap:wrap}
+    .title{font-weight:700; letter-spacing:.2px}
+    .sp{flex:1}
+    .row{display:flex; gap:.5rem; flex-wrap:wrap; align-items:center}
+    input[type="text"], input[type="password"], textarea, select{
+      background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:.5rem; padding:.55rem .65rem; outline:none; min-width:0;
+    }
+    input[type="text"]::placeholder, input[type="password"]::placeholder{color:var(--muted)}
+    input:focus, textarea:focus, select:focus{border-color:var(--focus); box-shadow:0 0 0 3px rgba(125,211,252,.15)}
+    .btn{background:linear-gradient(180deg, #2a5fff, #1f4fd6); color:white; border:none; padding:.6rem .9rem; border-radius:.6rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:.45rem}
+    .btn.secondary{background:linear-gradient(180deg, #1d2635, #151c29); color:#dfe9ff; border:1px solid var(--border)}
+    .btn.ghost{background:transparent; border:1px solid var(--border); color:#dfe9ff}
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+    main{flex:1; display:grid; grid-template-columns: 1.2fr .8fr; gap:1rem; padding:1rem; max-width:1400px; width:100%; margin:0 auto}
+    @media (max-width: 980px){ main{grid-template-columns:1fr} }
+    .card{background:rgba(12,18,28,.8); border:1px solid var(--border); border-radius:1rem; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card h2{margin:0; padding:1rem; border-bottom:1px solid var(--border); background:linear-gradient(180deg, #0c1420, #0d1522)}
+    .card .body{padding:1rem}
+    .editor-wrap{position:relative; height:70vh; min-height:420px}
+    #editor{position:absolute; inset:0; width:100%; height:100%; resize:none; border:none; background:var(--bg-soft); color:var(--ink); padding:1rem 1.1rem; font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; border-top:1px solid var(--border)}
+    .editor-actions{display:flex; gap:.5rem; flex-wrap:wrap; padding:1rem; background:linear-gradient(180deg, #0c1420, #0d1522); border-top:1px solid var(--border)}
+    .status{padding:.6rem .8rem; border-radius:.6rem; border:1px solid var(--border); color:#dfe9ff; background:rgba(20,28,40,.7); display:flex; align-items:center; gap:.6rem}
+    .status.ok{border-color:#164e3a; background:rgba(6,78,59,.25)}
+    .status.err{border-color:#7f1d1d; background:rgba(127,29,29,.22)}
+    .small{font-size:12px; color:var(--muted)}
+    code.inline{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0b1320; border:1px solid var(--border); padding:.1rem .3rem; border-radius:.4rem}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
+    @media (max-width:700px){ .grid{grid-template-columns:1fr} }
+    .kbd{border:1px solid var(--border); background:var(--panel); padding:.22rem .4rem; border-radius:.35rem; font-family:inherit; font-size:12px}
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .pill{display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .5rem; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,.04)}
+    .copy{display:flex; gap:.5rem; align-items:center}
+    .endpoint{word-break:break-all; padding:.5rem .6rem; border:1px dashed var(--border); border-radius:.5rem; background:rgba(255,255,255,.03)}
+    footer{padding:1rem; text-align:center; color:var(--muted)}
+    .list{max-height:240px; overflow:auto; border:1px solid var(--border); border-radius:.5rem; background:rgba(255,255,255,.03); padding:.25rem}
+    .list a{display:block; padding:.4rem .5rem; border-radius:.4rem}
+    .list a:hover{background:rgba(255,255,255,.06)}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="bar">
+      <div class="title">🧩 Lite JSON Host — Repo Mode</div>
+      <div class="pill"><strong>Storage</strong>: GitHub Repo <span class="muted">(no backend)</span></div>
+      <div class="sp"></div>
+      <div class="row">
+        <input id="token" type="password" placeholder="GitHub Token (repo contents)" autocomplete="off" />
+        <button class="btn secondary" id="btnCheck">Check Token</button>
+        <button class="btn ghost" id="btnNew">New</button>
+        <button class="btn ghost" id="btnBrowse">Browse JSON</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Editor</h2>
+      <div class="body">
+        <div class="grid" style="margin-bottom:.6rem">
+          <div class="row" style="gap:.6rem; flex-wrap:wrap">
+            <label class="muted">Owner</label>
+            <input id="owner" type="text" value="ringlyios" />
+            <label class="muted">Repo</label>
+            <input id="repo" type="text" value="json" />
+            <label class="muted">Branch</label>
+            <input id="branch" type="text" value="main" style="width:120px" />
+          </div>
+          <div class="row" style="gap:.6rem; justify-content:flex-end; flex-wrap:wrap">
+            <label class="muted">Path</label>
+            <input id="path" type="text" value="data.json" placeholder="e.g. data.json or folder/config.json" style="min-width:240px" />
+            <button class="btn secondary" id="btnLoadPath">Load Path</button>
+          </div>
+        </div>
+        <div class="editor-wrap">
+          <textarea id="editor" spellcheck="false">{
+  "hello": "world",
+  "updatedAt": ""
+}</textarea>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <input id="commit" type="text" placeholder="Commit message" style="min-width:260px" />
+        <button class="btn secondary" id="btnFormat">Format</button>
+        <button class="btn secondary" id="btnMinify">Minify</button>
+        <button class="btn secondary" id="btnValidate">Validate</button>
+        <div class="sp"></div>
+        <button class="btn" id="btnSave">Save (Create/Update)</button>
+        <button class="btn ghost" id="btnDownload">Download JSON</button>
+      </div>
+    </section>
+
+    <aside class="card">
+      <h2>Endpoint & Repo</h2>
+      <div class="body">
+        <div id="status" class="status" role="status">Ready. No backend, just GitHub's API.</div>
+
+        <h3 style="margin:1rem 0 .4rem">Your JSON Endpoint</h3>
+        <div class="endpoint mono" id="endpoint">— save first to get a URL —</div>
+        <div class="copy" style="margin-top:.6rem">
+          <button class="btn secondary" id="btnCopy">Copy URL</button>
+          <a id="btnOpenRaw" class="btn ghost" target="_blank" rel="noopener">Open</a>
+        </div>
+
+        <h3 style="margin:1rem 0 .4rem">Browse repo (root)</h3>
+        <div id="list" class="list small mono">— click “Browse JSON” —</div>
+
+        <details style="margin-top:1rem">
+          <summary><strong>Token scope</strong></summary>
+          <ul class="small">
+            <li>Public repo: use classic PAT with <code class="inline">public_repo</code> only.</li>
+            <li>Private repo: use classic PAT with <code class="inline">repo</code>, or a fine‑grained token with <em>Repository contents: Read/Write</em> on this repo.</li>
+            <li>Token is stored only in <code class="inline">sessionStorage</code> and sent directly from your browser to api.github.com.</li>
+          </ul>
+        </details>
+
+        <h3 style="margin:.8rem 0 .4rem">Shortcuts</h3>
+        <p class="small">
+          <span class="kbd">⌘/Ctrl</span> + <span class="kbd">S</span> Save ·
+          <span class="kbd">⌘/Ctrl</span> + <span class="kbd">B</span> Format
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    Built with only HTML, CSS & JS · Stores JSON in a GitHub repo · No servers.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const $ = sel => document.querySelector(sel);
+  const editor = $('#editor');
+  const tokenInput = $('#token');
+  const ownerInput = $('#owner');
+  const repoInput = $('#repo');
+  const branchInput = $('#branch');
+  const pathInput = $('#path');
+  const commitInput = $('#commit');
+
+  const status = $('#status');
+  const endpoint = $('#endpoint');
+  const btnOpenRaw = $('#btnOpenRaw');
+  const btnCopy = $('#btnCopy');
+  const list = $('#list');
+
+  const btnCheck = $('#btnCheck');
+  const btnNew = $('#btnNew');
+  const btnBrowse = $('#btnBrowse');
+  const btnFormat = $('#btnFormat');
+  const btnMinify = $('#btnMinify');
+  const btnValidate = $('#btnValidate');
+  const btnSave = $('#btnSave');
+  const btnDownload = $('#btnDownload');
+  const btnLoadPath = $('#btnLoadPath');
+
+  const LS_KEY = 'lite-json-host:repo:v1';
+  const SS_TOKEN = 'lite-json-host:token';
+
+  let lastSha = null; // Track file sha for updates
+
+  function setStatus(msg, kind){
+    status.className = 'status' + (kind ? ' ' + kind : '');
+    status.textContent = msg;
+  }
+
+  function saveState(){
+    const state = {
+      owner: ownerInput.value,
+      repo: repoInput.value,
+      branch: branchInput.value,
+      path: pathInput.value,
+      content: editor.value
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return;
+      const s = JSON.parse(raw);
+      if(s.owner) ownerInput.value = s.owner;
+      if(s.repo) repoInput.value = s.repo;
+      if(s.branch) branchInput.value = s.branch;
+      if(s.path) pathInput.value = s.path;
+      if(s.content) editor.value = s.content;
+    }catch(e){/* ignore */}
+  }
+
+  function storeToken(t){ if(t){ sessionStorage.setItem(SS_TOKEN, t); } else { sessionStorage.removeItem(SS_TOKEN);} }
+  function getToken(){ return tokenInput.value.trim() || sessionStorage.getItem(SS_TOKEN) || ''; }
+
+  async function gh(path, opts={}){
+    const token = getToken();
+    if(!token) throw new Error('Missing GitHub token.');
+    const res = await fetch(`https://api.github.com${path}`, {
+      ...opts,
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `token ${token}`,
+        ...(opts.headers||{})
+      },
+    });
+    if(!res.ok){
+      const text = await res.text();
+      throw new Error(`GitHub API ${res.status}: ${text}`);
+    }
+    return res.json();
+  }
+
+  function toBase64(str){
+    const enc = new TextEncoder();
+    const bytes = enc.encode(str);
+    let binary = '';
+    const chunk = 0x8000;
+    for(let i=0; i<bytes.length; i+=chunk){
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+    }
+    return btoa(binary);
+  }
+  function fromBase64(b64){
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function computeRaw(owner, repo, branch, path){
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}`;
+  }
+
+  function showEndpoint(url){
+    endpoint.textContent = url || '— save first to get a URL —';
+    btnOpenRaw.href = url || '#';
+    btnOpenRaw.toggleAttribute('aria-disabled', !url);
+  }
+
+  async function checkToken(){
+    try{
+      const me = await gh('/user');
+      setStatus(`Hello, @${me.login}. Token OK.`, 'ok');
+      storeToken(getToken());
+    }catch(e){ setStatus(e.message, 'err'); }
+  }
+
+  async function loadPath(){
+    const owner = ownerInput.value.trim();
+    const repo = repoInput.value.trim();
+    const branch = branchInput.value.trim();
+    const path = pathInput.value.trim();
+    if(!owner || !repo || !branch || !path){ setStatus('Owner, repo, branch and path are required.', 'err'); return; }
+
+    try{
+      const j = await gh(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`);
+      if(!('content' in j)) throw new Error('Not a file or missing content.');
+      const content = fromBase64(j.content);
+      editor.value = content;
+      lastSha = j.sha;
+      commitInput.value ||= `Update ${path}`;
+      setStatus(`Loaded ${path} @ ${branch}.`, 'ok');
+      showEndpoint(computeRaw(owner, repo, branch, path));
+      saveState();
+    }catch(e){
+      lastSha = null;
+      setStatus('Load failed: ' + e.message, 'err');
+    }
+  }
+
+  async function browseRoot(){
+    const owner = ownerInput.value.trim();
+    const repo = repoInput.value.trim();
+    const branch = branchInput.value.trim();
+    if(!owner || !repo || !branch){ setStatus('Owner, repo and branch are required.', 'err'); return; }
+    list.textContent = 'Loading…';
+    try{
+      const arr = await gh(`/repos/${owner}/${repo}/contents?ref=${encodeURIComponent(branch)}`);
+      const files = arr.filter(x => x.type === 'file' && /\.json$/i.test(x.name));
+      if(files.length === 0){ list.innerHTML = '<div class="small muted">No JSON files in repo root.</div>'; return; }
+      list.innerHTML = files.map(f => `<a href="#" data-path="${f.path}">${f.name}</a>`).join('');
+      list.querySelectorAll('a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); pathInput.value = a.dataset.path; loadPath(); }));
+      setStatus(`Listed ${files.length} JSON file(s) in root.`, 'ok');
+    }catch(e){
+      list.innerHTML = `<div class="small muted">Browse failed: ${e.message}</div>`;
+    }
+  }
+
+  function ensureUpdatedAt(){
+    try{
+      let obj = JSON.parse(editor.value);
+      if(obj && typeof obj === 'object'){
+        obj.updatedAt = new Date().toISOString();
+        editor.value = JSON.stringify(obj, null, 2);
+      }
+    }catch{/* ignore */}
+  }
+
+  async function save(){
+    const owner = ownerInput.value.trim();
+    const repo = repoInput.value.trim();
+    const branch = branchInput.value.trim();
+    const path = pathInput.value.trim();
+    if(!owner || !repo || !branch || !path){ setStatus('Owner, repo, branch and path are required.', 'err'); return; }
+
+    // validate JSON and beautify commit message
+    let contentStr;
+    try{
+      const obj = JSON.parse(editor.value);
+      contentStr = JSON.stringify(obj, null, 2);
+    }catch(e){ setStatus('Invalid JSON: ' + e.message, 'err'); return; }
+
+    ensureUpdatedAt();
+    contentStr = editor.value; // after updatedAt
+
+    const body = {
+      message: (commitInput.value.trim() || `${lastSha ? 'Update' : 'Create'} ${path}`),
+      content: toBase64(contentStr),
+      branch
+    };
+    if(lastSha) body.sha = lastSha;
+
+    try{
+      const j = await gh(`/repos/${owner}/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`, { method:'PUT', body: JSON.stringify(body) });
+      lastSha = j.content?.sha || null;
+      const raw = computeRaw(owner, repo, branch, path);
+      showEndpoint(raw);
+      setStatus(`${lastSha ? 'Updated' : 'Created'} ${path} on ${branch}.`, 'ok');
+      saveState();
+    }catch(e){ setStatus('Save failed: ' + e.message, 'err'); }
+  }
+
+  function pretty(){
+    try{ const obj = JSON.parse(editor.value); editor.value = JSON.stringify(obj, null, 2); setStatus('Formatted JSON.', 'ok'); saveState(); }
+    catch(e){ setStatus('Format failed: ' + e.message, 'err'); }
+  }
+  function minify(){
+    try{ const obj = JSON.parse(editor.value); editor.value = JSON.stringify(obj); setStatus('Minified JSON.', 'ok'); saveState(); }
+    catch(e){ setStatus('Minify failed: ' + e.message, 'err'); }
+  }
+  function validate(){
+    try{ JSON.parse(editor.value); setStatus('Valid JSON ✔', 'ok'); }
+    catch(e){ setStatus('Invalid JSON: ' + e.message, 'err'); }
+  }
+  function downloadJSON(){
+    try{
+      const obj = JSON.parse(editor.value);
+      const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (pathInput.value.trim() || 'data.json').split('/').pop(); a.click(); URL.revokeObjectURL(a.href);
+    }catch(e){ setStatus('Download failed: ' + e.message, 'err'); }
+  }
+
+  // Events
+  btnFormat.addEventListener('click', pretty);
+  btnMinify.addEventListener('click', minify);
+  btnValidate.addEventListener('click', validate);
+  btnCheck.addEventListener('click', checkToken);
+  btnSave.addEventListener('click', save);
+  btnDownload.addEventListener('click', downloadJSON);
+  btnBrowse.addEventListener('click', browseRoot);
+  btnNew.addEventListener('click', () => {
+    editor.value = '{\n  "hello": "world",\n  "updatedAt": ""\n}';
+    pathInput.value = 'data.json';
+    commitInput.value = '';
+    lastSha = null;
+    showEndpoint('');
+    setStatus('Started a new document.', 'ok');
+    saveState();
+  });
+  btnLoadPath.addEventListener('click', loadPath);
+  btnCopy.addEventListener('click', async () => {
+    const url = endpoint.textContent.trim();
+    if(!url || url.startsWith('—')) return;
+    await navigator.clipboard.writeText(url);
+    setStatus('Copied endpoint to clipboard.', 'ok');
+  });
+
+  // Auto-save UI state on changes
+  let t; editor.addEventListener('input', () => { clearTimeout(t); t = setTimeout(saveState, 300); });
+  [ownerInput, repoInput, branchInput, pathInput, commitInput].forEach(el => el.addEventListener('input', saveState));
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b'){ e.preventDefault(); pretty(); }
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); save(); }
+  });
+
+  // Init
+  loadState();
+  const stored = sessionStorage.getItem(SS_TOKEN); if(stored){ tokenInput.value = stored; }
+  showEndpoint('');
+})();
+</script>
+</body>
+</html>
